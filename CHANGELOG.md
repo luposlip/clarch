@@ -3,7 +3,12 @@ All notable changes to this project will be documented in this file. This change
 
 ## [Unreleased]
 
-- nothing yet
+...
+
+## 0.2.0 - 2024-07-17
+
+### Added
+- fn `targz-entries` that return a lazy seq of entry data.
 
 ## 0.1.0 - 2024-06-11
 ### Added

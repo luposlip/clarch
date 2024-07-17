@@ -13,9 +13,15 @@
             GzipCompressorOutputStream GzipCompressorInputStream]
            [org.apache.commons.compress.utils IOUtils]))
 
-(defn compressed-input-stream ^CompressorInputStream [filename]
+(defn compressor-input-stream ^CompressorInputStream [filename]
   (let [in ^BufferedInputStream (io/input-stream filename)]
     (.createCompressorInputStream (CompressorStreamFactory.) in)))
+
+(defn targz-input-stream ^TarArchiveInputStream [filename]
+  (->> filename
+       io/input-stream
+       (GzipCompressorInputStream.)
+       (TarArchiveInputStream.)))
 
 (defn zip-output-stream ^ZipArchiveOutputStream [filename]
   (let [out ^BufferedOutputStream (io/output-stream filename)]
@@ -26,7 +32,7 @@
   (let [out ^BufferedOutputStream (io/output-stream filename)]
     (TarArchiveOutputStream. out)))
 
-(defn tar-gz-output-stream
+(defn targz-output-stream
   "Creates a compressed TAR ball"
   ^TarArchiveOutputStream [filename]
   (let [bos ^BufferedOutputStream (io/output-stream filename)
@@ -69,12 +75,16 @@
     (.close zf)
     bytes))
 
-(defn finish-and-close-zip-outputstream! [^ZipArchiveOutputStream zos]
+(defmulti finish-and-close-outputstream! type)
+
+(defmethod finish-and-close-outputstream! ZipArchiveOutputStream
+  [^ZipArchiveOutputStream zos]
   (doto zos
     (.finish)
     (.close)))
 
-(defn finish-and-close-tar-outputstream! [^TarArchiveOutputStream zos]
+(defmethod finish-and-close-outputstream! TarArchiveOutputStream
+  [^TarArchiveOutputStream zos]
   (doto zos
     (.finish)
     (.close)))
@@ -84,21 +94,29 @@
     (IOUtils/copy tar-input bais)
     (.toByteArray bais)))
 
-(defn combine-tar-gz [sources target]
+(defn combine-targz [sources target]
   {:pre [(every? string? sources)
          (string? target)]}
-  (with-open [out ^TarArchiveOutputStream (tar-gz-output-stream target)]
+  (with-open [out ^TarArchiveOutputStream (targz-output-stream target)]
     (doseq [^String input sources]
-      (with-open [in ^TarArchiveInputStream (->> input
-                                                 io/input-stream
-                                                 (GzipCompressorInputStream.)
-                                                 (TarArchiveInputStream.))]
+      (with-open [in ^TarArchiveInputStream (targz-input-stream input)]
         (loop [entry ^TarArchiveEntry (.getNextEntry in)]
           (when entry
             (write-tar-entry! out
                               (read-current-tar-entry in)
                               (.getName entry))
             (recur (.getNextEntry in))))))))
+
+(defn targz-entries
+  "Return a lazy seq of entries from TarArchiveInputstream.
+  Returned as a map with keys :filename and :data (byte array)"
+  [^TarArchiveInputStream targz-in]
+  (lazy-seq
+   (when-let [entry ^TarArchiveEntry (.getNextEntry targz-in)]
+     (cons {:filename (.getName entry)
+            :data (read-current-tar-entry targz-in)}
+           (targz-entries targz-in)))))
+
 #_
 (with-open [zos (zip-output-stream "filename.zip")]
   (write-zip-entry! zos (.getBytes "bytes-to-write") "zip-entry-name.txt")
