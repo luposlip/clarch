@@ -2,7 +2,11 @@
   (:require [clojure.java.io :as io])
   (:import [java.io
             ByteArrayInputStream ByteArrayOutputStream
-            BufferedInputStream BufferedOutputStream]
+            BufferedInputStream BufferedOutputStream
+            File RandomAccessFile
+            SequenceInputStream]
+           [java.util.zip InflaterInputStream DeflaterInputStream
+            Inflater InflaterInputStream]
            [org.apache.commons.compress.archivers.zip
             ZipArchiveEntry ZipArchiveOutputStream ZipFile]
            [org.apache.commons.compress.archivers.tar TarFile
@@ -60,20 +64,87 @@
 (defn tar-file [^String filename]
   (TarFile. (io/file filename)))
 
-(defn read-zip-entry! ^"[B" [^ZipFile zf ^String entry-name]
-  (let [ze (.getEntry zf entry-name)
-        baos (ByteArrayOutputStream.)]
-    (when ze
-      (io/copy (.getInputStream zf ze) baos)
-      (.toByteArray ^ByteArrayOutputStream baos))))
+(defn zip-entry->bytes
+  [^ZipFile zf ^ZipArchiveEntry entry]
+  (let [baos (ByteArrayOutputStream.)]
+    (io/copy (.getInputStream zf entry) baos)
+    (.toByteArray ^ByteArrayOutputStream baos)))
 
-(defn read-first-zip-entry! ^"[B" [^String zip-file]
-  (let [zf (ZipFile. zip-file)
-        bytes (read-zip-entry!
-               zf
-               (.getName ^ZipArchiveEntry (.nextElement (.getEntries zf))))]
-    (.close zf)
-    bytes))
+(defn file-bytes ^"[B"
+  [^File zip-file offset len]
+  (when (and offset len)
+    (let [bytes (byte-array len)]
+      (doto (RandomAccessFile. zip-file "r")
+        (.seek offset)
+        (.read bytes 0 len)
+        (.close))
+      bytes)))
+
+(def ^"[B" ONE_ZERO_BYTE (byte-array 1))
+
+(defn deflate-bytes ^"[B" [^"[B" raw-bytes]
+  (let [inf ^Inflater (Inflater. true)]
+    (with-open [bais (ByteArrayInputStream. raw-bytes)
+                is (BufferedInputStream. bais)
+                sis ^SequenceInputStream (SequenceInputStream.
+                                          is (ByteArrayInputStream. ONE_ZERO_BYTE))
+                iisws (InflaterInputStream. sis inf)
+                baos (ByteArrayOutputStream.)]
+      (io/copy iisws baos)
+      (.end inf)
+      (.toByteArray baos))))
+
+(defn zip-bytes ^"[B" [^"[B" u-bytes]
+  (with-open [in (ByteArrayInputStream. u-bytes)
+              din (DeflaterInputStream. in)
+              baos (ByteArrayOutputStream.)]
+    (io/copy din baos)
+    (.toByteArray baos)))
+
+(defn unzip-bytes ^"[B" [^"[B" c-bytes]
+  (with-open [in (ByteArrayInputStream. c-bytes)
+              iin (InflaterInputStream. in)
+              baos (ByteArrayOutputStream.)]
+    (io/copy iin baos)
+    (.toByteArray baos)))
+
+#_
+(defn gz-bytes ^"[B" [^"[B" u-bytes]
+  (with-open [in (ByteArrayInputStream. u-bytes)
+              baos (ByteArrayOutputStream.)
+              gzos (GZIPOutputStream. baos)]
+    (io/copy in gzos)
+    (.toByteArray baos)))
+
+#_
+(defn ungz-bytes ^"[B" [^"[B" c-bytes]
+  (with-open [in (ByteArrayInputStream. c-bytes)
+              gzin (GZIPInputStream. in)
+              baos (ByteArrayOutputStream.)]
+    (io/copy gzin baos)
+    (.toByteArray baos)))
+
+(defn zip-entries
+  "Lazy seq of zip entries"
+  ([^File zip-file]
+   (let [zf (ZipFile. zip-file)]
+     (zip-entries zf (.getEntries zf))))
+  ([^ZipFile zf zes]
+   (lazy-seq
+    (when-let [entry ^ZipArchiveEntry (.nextElement zes)]
+      (cons entry
+            (zip-entries zf zes))))))
+
+(defn parsed-zip-entries
+  "Lazy seq of parsed zip entries"
+  ([^File zip-file]
+   (let [zf (ZipFile. zip-file)]
+     (parsed-zip-entries zf (.getEntries zf))))
+  ([^ZipFile zf zes]
+   (map (fn [^ZipArchiveEntry entry]
+          {:filename (.getName entry)
+           :data (zip-entry->bytes zf entry)})
+        (zip-entries zf zes))))
 
 (defmulti finish-and-close-outputstream! type)
 
@@ -117,7 +188,29 @@
             :data (read-current-tar-entry targz-in)}
            (targz-entries targz-in)))))
 
+(defn targz->zip [targz-filename zip-filename]
+  (with-open [in (targz-input-stream targz-filename)
+              out (zip-output-stream zip-filename)]
+    (doseq [{:keys [data filename]} ^TarArchiveEntry (targz-entries in)]
+      (write-zip-entry! out data filename))))
+
 #_
 (with-open [zos (zip-output-stream "filename.zip")]
   (write-zip-entry! zos (.getBytes "bytes-to-write") "zip-entry-name.txt")
   (.finish zos))
+
+
+#_
+(let [f (io/file "/path/to/zip-filename")]
+  (->>
+   f
+   zip-entries ;; takes a long time, that's why you should parse through all the
+               ;; entries sequentially when you first have them!
+   (drop 100)
+   first
+   bean
+   ((juxt :dataOffset :compressedSize))
+   (apply file-bytes f)
+   deflate-bytes ;; DEFLATE is default ZIP compression
+   slurp
+   clojure.edn/read-string)) ;; do something else if the doc is another type
