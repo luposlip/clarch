@@ -1,6 +1,7 @@
 (ns clarch.core
   (:require [clojure.java.io :as io])
-  (:import [java.io
+  (:import [java.util Enumeration]
+           [java.io
             ByteArrayInputStream ByteArrayOutputStream
             BufferedInputStream BufferedOutputStream
             File RandomAccessFile
@@ -137,7 +138,7 @@
   ([^File zip-file]
    (let [zf (ZipFile. zip-file)]
      (zip-entries zf (.getEntries zf))))
-  ([^ZipFile zf zes]
+  ([^ZipFile zf ^Enumeration zes]
    (lazy-seq
       (when-let [entry ^ZipArchiveEntry (.nextElement zes)]
         (if (.isDirectory entry)
