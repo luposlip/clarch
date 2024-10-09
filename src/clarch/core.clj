@@ -139,9 +139,11 @@
      (zip-entries zf (.getEntries zf))))
   ([^ZipFile zf zes]
    (lazy-seq
-    (when-let [entry ^ZipArchiveEntry (.nextElement zes)]
-      (cons entry
-            (zip-entries zf zes))))))
+      (when-let [entry ^ZipArchiveEntry (.nextElement zes)]
+        (if (.isDirectory entry)
+          (zip-entries zf zes)
+          (cons entry
+                (zip-entries zf zes)))))))
 
 (defn parsed-zip-entries
   "Lazy seq of parsed zip entries"
@@ -217,20 +219,13 @@
     (doseq [{:keys [data filename]} ^TarArchiveEntry (targz-entries in)]
       (write-zip-entry! out data filename))))
 
-#_
-(with-open [zos (zip-output-stream "filename.zip")]
-  (write-zip-entry! zos (.getBytes "bytes-to-write") "zip-entry-name.txt")
-  (.finish zos))
-
-
-#_
-(let [f (io/file "/path/to/zip-filename")]
-  (->>
-   f
-   zip-entry-metas ;; takes a long time, that's why you should parse through all
-                   ;; the entries sequentially when you first have them!
-   (drop 100)
-   first
-   (deflated-bytes f) ;; DEFLATE is default ZIP compression
-   slurp
-   clojure.edn/read-string)) ;; do something else if the doc is another type
+(comment
+  (def f (io/file "/path/to/zip-filename"))
+  ;; takes a long time, that's why you should parse through all the entries
+  ;; sequentially when you first have them!
+  (def zems (zip-entry-metas f))
+  (->> zems
+       (drop 100)
+       (take 1)
+       (map (partial deflated-bytes f)) ;; DEFLATE is default ZIP compression
+       slurp)) ;; parse the deflated bytes however you need!

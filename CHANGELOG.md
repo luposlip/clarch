@@ -5,6 +5,11 @@ All notable changes to this project will be documented in this file. This change
 
 ...
 
+## 0.3.1 - 2024-10-09
+
+Support for direct unzipping of entries in a zip file by compressed data offset
+and compressed length.
+
 ## 0.2.0 - 2024-07-17
 
 ### Added
