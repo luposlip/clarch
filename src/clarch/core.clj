@@ -94,6 +94,14 @@
       (.end inf)
       (.toByteArray baos))))
 
+(defn deflated-bytes
+  ([^File zip-file offset compressed-size]
+   (-> zip-file
+       (file-bytes offset compressed-size)
+       deflate-bytes))
+  ([^File zip-file {:keys [offset compressed-size]}]
+   (deflated-bytes zip-file offset compressed-size)))
+
 (defn zip-bytes ^"[B" [^"[B" u-bytes]
   (with-open [in (ByteArrayInputStream. u-bytes)
               din (DeflaterInputStream. in)
@@ -144,6 +152,21 @@
    (map (fn [^ZipArchiveEntry entry]
           {:filename (.getName entry)
            :data (zip-entry->bytes zf entry)})
+        (zip-entries zf zes))))
+
+(defn zip-entry-metas
+  "Lazy seq of zip entries meta data:
+  - :name
+  - :offset
+  - :compressed-size"
+  ([^File zip-file]
+   (let [zf (ZipFile. zip-file)]
+     (zip-entry-metas zf (.getEntries zf))))
+  ([^ZipFile zf zes]
+   (map (fn [^ZipArchiveEntry entry]
+          {:filename (.getName entry)
+           :offset (.getDataOffset entry)
+           :compressed-size (.getCompressedSize entry)})
         (zip-entries zf zes))))
 
 (defmulti finish-and-close-outputstream! type)
@@ -204,13 +227,10 @@
 (let [f (io/file "/path/to/zip-filename")]
   (->>
    f
-   zip-entries ;; takes a long time, that's why you should parse through all the
-               ;; entries sequentially when you first have them!
+   zip-entry-metas ;; takes a long time, that's why you should parse through all
+                   ;; the entries sequentially when you first have them!
    (drop 100)
    first
-   bean
-   ((juxt :dataOffset :compressedSize))
-   (apply file-bytes f)
-   deflate-bytes ;; DEFLATE is default ZIP compression
+   (deflated-bytes f) ;; DEFLATE is default ZIP compression
    slurp
    clojure.edn/read-string)) ;; do something else if the doc is another type
