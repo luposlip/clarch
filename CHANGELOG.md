@@ -5,6 +5,10 @@ All notable changes to this project will be documented in this file. This change
 
 ...
 
+## 0.3.3 - 2024-10-10
+
+Fix issue when traversing huge (ZIP64) files to the end.
+
 ## 0.3.2 - 2024-10-09
 
 Support for direct unzipping of individual entries in a zip file by using

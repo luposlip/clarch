@@ -1,4 +1,4 @@
-(defproject com.luposlip/clarch "0.3.2"
+(defproject com.luposlip/clarch "0.3.3"
   :description "Clojure Archiving library"
   :url "https://github.com/luposlip/clarch"
   :license {:name "Apache License, Version 2.0"

@@ -134,17 +134,18 @@
     (.toByteArray baos)))
 
 (defn zip-entries
-  "Lazy seq of zip entries"
+  "Lazy seq of zip files (auto-skips directories)"
   ([^File zip-file]
    (let [zf (ZipFile. zip-file)]
      (zip-entries zf (.getEntries zf))))
   ([^ZipFile zf ^Enumeration zes]
    (lazy-seq
-      (when-let [entry ^ZipArchiveEntry (.nextElement zes)]
-        (if (.isDirectory entry)
-          (zip-entries zf zes)
-          (cons entry
-                (zip-entries zf zes)))))))
+      (when (.hasMoreElements zes)
+        (let [entry ^ZipArchiveEntry (.nextElement zes)]
+          (if (.isDirectory entry)
+            (zip-entries zf zes)
+            (cons entry
+                  (zip-entries zf zes))))))))
 
 (defn parsed-zip-entries
   "Lazy seq of parsed zip entries"
