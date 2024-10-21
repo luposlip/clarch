@@ -175,6 +175,14 @@
            :method (.getMethod entry)})
         (zip-entries zf zes))))
 
+(defn zip-entry-meta->uncompressed-bytes
+  ^"[B" [zip-file {:keys [method offset compressed-size] :as zmeta}]
+  (let [raw-bytes (file-bytes zip-file offset compressed-size)]
+    (case method
+      0 raw-bytes
+      8 (deflate-bytes raw-bytes)
+      (throw (ex-info "Unsupported ZIP method" zmeta)))))
+
 (defmulti finish-and-close-outputstream! type)
 
 (defmethod finish-and-close-outputstream! ZipArchiveOutputStream
@@ -224,12 +232,13 @@
       (write-zip-entry! out data filename))))
 
 (comment
-  (def f (io/file "/path/to/zip-filename"))
-  ;; takes a long time, that's why you should parse through all the entries
-  ;; sequentially when you first have them!
-  (def zems (zip-entry-metas f))
-  (->> zems
-       (drop 100)
-       (take 1)
-       (map (partial deflated-bytes f)) ;; DEFLATE is default ZIP compression
-       slurp)) ;; parse the deflated bytes however you need!
+  (let [zf (io/file "/path/to/zip-filename")
+        zems (zip-entry-metas zf)]
+    ;; takes a long time, that's why you should parse through all the entries
+    ;; sequentially when you first have them!
+    (->> zems
+         (drop 100)
+         (take 1)
+         (map (partial zip-entry-meta->uncompressed-bytes zf)) ;; DEFLATE is default ZIP compression
+         slurp) ;; parse the deflated bytes however you need!
+    ))

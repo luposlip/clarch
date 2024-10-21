@@ -5,6 +5,14 @@ All notable changes to this project will be documented in this file. This change
 
 ...
 
+## 0.3.4 - 2024-10-21
+
+## Added
+- ZIP entry compression method (store, deflate etc.) to zip metadata,
+  ref.: https://en.wikipedia.org/wiki/ZIP_(file_format)
+- fn `zip-entry-meta->uncompressed-bytes` that wraps functions for different
+  compression methods. Currently 0 (none) and 8 (deflate) is supported.
+
 ## 0.3.3 - 2024-10-10
 
 Fix issue when traversing huge (ZIP64) files to the end.

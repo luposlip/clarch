@@ -3,7 +3,7 @@
 # clarch
 
 ```clojure
-[com.luposlip/clarch "0.3.3"]
+[com.luposlip/clarch "0.3.4"]
 ```
 
 _CLojure ARCHiver_
