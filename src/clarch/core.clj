@@ -162,7 +162,8 @@
   "Lazy seq of zip entries meta data:
   - :name
   - :offset
-  - :compressed-size"
+  - :compressed-size
+  - :method (archive, deflate etc.)"
   ([^File zip-file]
    (let [zf (ZipFile. zip-file)]
      (zip-entry-metas zf (.getEntries zf))))
@@ -170,7 +171,8 @@
    (map (fn [^ZipArchiveEntry entry]
           {:filename (.getName entry)
            :offset (.getDataOffset entry)
-           :compressed-size (.getCompressedSize entry)})
+           :compressed-size (.getCompressedSize entry)
+           :method (.getMethod entry)})
         (zip-entries zf zes))))
 
 (defmulti finish-and-close-outputstream! type)
