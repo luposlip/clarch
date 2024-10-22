@@ -5,9 +5,25 @@ All notable changes to this project will be documented in this file. This change
 
 ...
 
+## 0.3.6 - 2024-10-22
+
+### Enhanced
+
+- Old ZIP indices (w/o the compression method), defaults to 8 (deflated)
+
+## 0.3.5 - 2024-10-21
+
+### Enhanced
+
+- ZIP index now includes a third value per entry - the compression method
+
+### Added
+
+- Convenience variant of `zip-entry-meta->uncompressed-bytes` for updated index
+
 ## 0.3.4 - 2024-10-21
 
-## Added
+### Added
 - ZIP entry compression method (store, deflate etc.) to zip metadata,
   ref.: https://en.wikipedia.org/wiki/ZIP_(file_format)
 - fn `zip-entry-meta->uncompressed-bytes` that wraps functions for different

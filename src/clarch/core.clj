@@ -1,6 +1,7 @@
 (ns clarch.core
   (:require [clojure.java.io :as io])
-  (:import [java.util Enumeration]
+  (:import [clojure.lang ExceptionInfo]
+           [java.util Enumeration]
            [java.io
             ByteArrayInputStream ByteArrayOutputStream
             BufferedInputStream BufferedOutputStream
@@ -175,13 +176,24 @@
            :method (.getMethod entry)})
         (zip-entries zf zes))))
 
+(defn zip-bytes->uncompressed-bytes
+  [raw-bytes & [compression-method]]
+  (condp = (or compression-method 8)
+    0 raw-bytes
+    8 (deflate-bytes raw-bytes)
+    (throw (ex-info "Unsupported ZIP method" compression-method))))
+
 (defn zip-entry-meta->uncompressed-bytes
-  ^"[B" [zip-file {:keys [method offset compressed-size] :as zmeta}]
-  (let [raw-bytes (file-bytes zip-file offset compressed-size)]
-    (case method
-      0 raw-bytes
-      8 (deflate-bytes raw-bytes)
-      (throw (ex-info "Unsupported ZIP method" zmeta)))))
+  ^"[B"
+  ([zip-file offset compressed-size method]
+   (zip-bytes->uncompressed-bytes
+    (file-bytes zip-file offset compressed-size)
+    method))
+  ([zip-file {:keys [offset compressed-size method] :as zmeta}]
+   (try
+     (zip-entry-meta->uncompressed-bytes zip-file offset compressed-size method)
+     (catch ExceptionInfo e
+       (throw (ex-info (ex-message e) zmeta))))))
 
 (defmulti finish-and-close-outputstream! type)
 
